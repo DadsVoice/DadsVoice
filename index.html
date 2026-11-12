@@ -61,6 +61,9 @@ const safeUrl=u=>/^https?:\/\//i.test(u||'')?u:'';
 const when=d=>new Date(d+'T12:00:00').toLocaleDateString(undefined,{weekday:'long',year:'numeric',month:'long',day:'numeric'});
 const today=()=>new Date().toLocaleDateString('en-CA');
 const fmtDur=s=>{if(!s)return'';if(s<60)return s+' sec';const m=Math.max(1,Math.round(s/60));return m<60?m+' min':Math.floor(m/60)+' hr'+(m%60?' '+m%60+' min':'')};
+function ask(msg,yes){return new Promise(res=>{const m=document.createElement('div');m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:20;display:flex;align-items:center;justify-content:center;padding:20px';
+ m.innerHTML=`<div class="card" style="max-width:420px;width:100%;margin:0"><p style="margin:0 0 8px;font-size:19px">${esc(msg)}</p><button class="btn play" data-y="1">${esc(yes)}</button><button class="btn song" data-n="1">Cancel</button></div>`;
+ m.onclick=e=>{if(e.target.dataset.y){m.remove();res(true)}else if(e.target.dataset.n||e.target===m){m.remove();res(false)}};document.body.appendChild(m)})}
 const toast=t=>{const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',3500)};
 const lk=(b,c)=>`#/c/${encodeURIComponent(b)}/${c}`;
 const rangeLabel=e=>e.book+(e.from?' '+e.from+(e.to>e.from?'-'+e.to:''):'');
@@ -300,8 +303,8 @@ async function editSave(id){
   await load();toast('Changes saved.');history.back();
  }catch(x){err.textContent='Not saved: '+(x.message||x);err.style.display='block';$('e_save').disabled=false}}
 async function softDelete(id){
- if(!confirm('Move this reading to Recently Deleted? You can bring it back for 30 days.'))return;
- const r=await sb.from('readings').update({deleted_at:new Date().toISOString()}).eq('id',id);if(r.error){alert('Could not delete: '+r.error.message);return}
+ if(!await ask('Move this reading to Recently Deleted? You can bring it back for 30 days.','Yes, delete it'))return;
+ const r=await sb.from('readings').update({deleted_at:new Date().toISOString()}).eq('id',id);if(r.error){toast('Could not delete: '+r.error.message);return}
  await load();toast('Moved to Recently Deleted.');location.hash='#/'}
 function trashPage(){
  let h=`<p class="crumb">${back('#/','Back to All Books')}</p><h2 style="margin-top:8px">Recently deleted</h2><p>Readings here are removed for good after 30 days.</p>`;
@@ -337,12 +340,12 @@ app.addEventListener('click',async e=>{
  const pc=t.closest('.pickc');if(pc){const c=+pc.dataset.c;ADD.sel.has(c)?ADD.sel.delete(c):ADD.sel.add(c);pc.classList.toggle('on');plan();return}
  if(t.id==='save'){save();return}
  if(t.id==='rec_start'){recStart();return}if(t.id==='rec_pause'){recPause();return}if(t.id==='rec_stop'){recStop();return}if(t.id==='rec_again'){recAgain();return}if(t.id==='copy_phone'){copyToPhone();return}if(t.id==='recover'){recoverPending();return}
- if(t.id==='discard'){if(confirm('Discard this recording without saving?')){ADD={book:'',sel:new Set(),file:null,dur:null};idbClear();location.hash='#/'}return}
+ if(t.id==='discard'){if(await ask('Discard this recording without saving?','Yes, discard it')){ADD={book:'',sel:new Set(),file:null,dur:null};idbClear();location.hash='#/'}return}
  if(t.id==='e_save'){editSave(t.dataset.id);return}
  if(t.id==='e_del'){softDelete(t.dataset.id);return}
  if(t.id==='cplink'){const l=$('lnk').textContent;(navigator.clipboard?navigator.clipboard.writeText(l):Promise.reject()).then(()=>t.textContent='Copied',()=>t.textContent='Press and hold the link above to copy');return}
  const rs=t.closest('[data-restore]');if(rs){await sb.from('readings').update({deleted_at:null}).eq('id',rs.dataset.restore);await load();toast('Restored.');trashPage();return}
- const fv=t.closest('[data-forever]');if(fv){if(!confirm('Delete this reading and its recording forever? This cannot be undone.'))return;const x=TRASH.find(z=>z.id===fv.dataset.forever);
+ const fv=t.closest('[data-forever]');if(fv){if(!await ask('Delete this reading and its recording forever? This cannot be undone.','Delete forever'))return;const x=TRASH.find(z=>z.id===fv.dataset.forever);
   await sb.storage.from('recordings').remove([x.path]);await sb.from('readings').delete().eq('id',x.id);await load();trashPage();return}
  const b=t.closest('.play');if(!b||b.tagName==='A'||!b.dataset.a)return;const au=b.nextElementSibling;
  document.querySelectorAll('audio').forEach(x=>{if(x!==au&&x.id!=='pv')x.pause()});
