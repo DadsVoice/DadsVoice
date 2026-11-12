@@ -60,7 +60,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&
 const safeUrl=u=>/^https?:\/\//i.test(u||'')?u:'';
 const when=d=>new Date(d+'T12:00:00').toLocaleDateString(undefined,{weekday:'long',year:'numeric',month:'long',day:'numeric'});
 const today=()=>new Date().toLocaleDateString('en-CA');
-const fmtDur=s=>{if(!s)return'';const m=Math.max(1,Math.round(s/60));return m<60?m+' min':Math.floor(m/60)+' hr'+(m%60?' '+m%60+' min':'')};
+const fmtDur=s=>{if(!s)return'';if(s<60)return s+' sec';const m=Math.max(1,Math.round(s/60));return m<60?m+' min':Math.floor(m/60)+' hr'+(m%60?' '+m%60+' min':'')};
 const toast=t=>{const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',3500)};
 const lk=(b,c)=>`#/c/${encodeURIComponent(b)}/${c}`;
 const rangeLabel=e=>e.book+(e.from?' '+e.from+(e.to>e.from?'-'+e.to:''):'');
@@ -70,7 +70,7 @@ const sb=supabase.createClient(SETTINGS.supabaseUrl,SETTINGS.supabaseKey);
 const qs=new URLSearchParams(location.search);let FAM=null,UID=null;
 try{if(qs.get('owner'))localStorage.removeItem('dv_fam');else if(qs.get('f'))localStorage.setItem('dv_fam',qs.get('f'));FAM=localStorage.getItem('dv_fam')}catch(e){FAM=qs.get('f')}
 if(!FAM&&qs.get('f'))FAM=qs.get('f');
-let E=[],TRASH=[],by={},LONG=[];
+let E=[],TRASH=[],by={},LONG=[],PENDING=false;
 const norm=r=>({id:r.id,date:r.read_date,book:r.book,from:r.first_ch,to:r.last_ch,path:r.audio_path,dur:r.duration_sec,song:r.song_title,artist:r.song_artist,url:r.song_url,title:r.title,del:r.deleted_at});
 const audioUrl=p=>sb.storage.from('recordings').getPublicUrl(p).data.publicUrl;
 async function load(){
@@ -97,6 +97,7 @@ function card(e,head){
 /* ---------- pages ---------- */
 function home(){
  let h='';
+ if(!FAM&&PENDING)h+=`<div class="card"><h3>An unfinished recording was found</h3><p style="margin:0">The app closed before you saved it. You can bring it back.</p><button class="btn play" id="recover">Recover it</button></div>`;
  if(!FAM)h+=`<a class="btn play" href="#/add" style="font-size:22px;padding:18px">Add a reading</a>`;
  if(E.some(e=>e.book==='Start Here'))h+=`<a class="start" href="#/special/Start%20Here">Start here: a message from Dad</a>`;
  h+=`<a class="btn song" href="#/date">Find a reading by date</a>`;
@@ -153,10 +154,17 @@ function reviewPage(){
  if(!ADD.book){location.hash='#/add';return}
  const a=[...ADD.sel].sort((x,y)=>x-y),sp=SPECIAL.includes(ADD.book);
  const what=sp?(ADD.book==='Start Here'?'Start Here (introduction)':'Random Thoughts (my writings)'):`${ADD.book} ${a[0]}${a.length>1?'-'+a[a.length-1]:''}`;
+ let q='wav';try{q=localStorage.getItem('dv_q')||'wav'}catch(_){}
  app.innerHTML=`<p class="crumb">${back(sp?'#/add':'#/add/'+encodeURIComponent(ADD.book),'Change')}</p><h2 style="margin-top:8px">${esc(what)}</h2>
- <div class="card"><h3>1. Choose the recording</h3>
- <p style="margin:0;font-size:16px;color:var(--soft)">Tap Choose File, then Browse, then iCloud Drive, DadsVoice, audio.</p>
- <input type="file" id="f_file" accept="audio/*,.m4a,.mp4,.mp3,.wav,.caf"><audio id="pv" controls style="display:block;margin-top:12px"></audio><p id="pvinfo" class="meta"></p></div>
+ <div class="card"><h3>1. Record</h3>
+ <div id="recbox"><label>Sound quality</label><select id="q"><option value="wav" ${q==='wav'?'selected':''}>Lossless (best, largest file)</option><option value="aac" ${q==='aac'?'selected':''}>High quality, compact</option></select>
+ <button class="btn play" id="rec_start" style="margin-top:14px">Start recording</button>
+ <p class="meta" style="font-size:15px">Before you start: set Auto-Lock to Never (Settings, Display and Brightness), and stay in this app until you tap Stop.</p></div>
+ <div id="rec_live" style="display:none"><p id="rec_time" class="meta" style="font-size:40px;margin:0">0:00</p><div class="bar"><i id="lvl"></i></div>
+ <button class="btn song" id="rec_pause">Pause</button><button class="btn play" id="rec_stop">Stop and review</button><p class="meta" style="font-size:15px">Keep this screen on. Do not leave this app.</p></div>
+ <div id="rec_done" style="display:none"><audio id="pv" controls style="display:block;margin-top:6px"></audio><p id="pvinfo" class="meta"></p><p id="gap" class="msg" style="display:none"></p>
+ <button class="btn song small" id="rec_again">Record again</button><button class="btn song small" id="copy_phone">Save a copy to my phone</button></div>
+ <details style="margin-top:14px"><summary style="cursor:pointer;color:var(--soft)">Use a recording from my Files instead</summary><input type="file" id="f_file" accept="audio/*,.m4a,.mp4,.mp3,.wav,.caf" style="margin-top:8px"></details></div>
  <div class="card"><h3>2. Details</h3>
  <label>Date read</label><input type="date" id="f_date" value="${today()}">
  ${sp?'<label>Title</label><input id="f_title" placeholder="For example: Forged in the Furnace">':''}
@@ -164,12 +172,85 @@ function reviewPage(){
  <div class="row"><div><label>Song name (optional)</label><input id="f_song"></div><div><label>Artist (optional)</label><input id="f_artist"></div></div></div>
  <button class="btn play" id="save">Save this reading</button><button class="btn song" id="discard">Discard</button>
  <div id="prog" style="display:none"><div class="bar"><i></i></div><p class="meta">Uploading. Keep this screen open until it finishes.</p></div><p class="msg" id="err" style="display:none"></p>`;
- $('pv').style.display='none'}
-function fileChosen(f){
- ADD.file=f;ADD.dur=null;const pv=$('pv'),inf=$('pvinfo');if(!f){pv.style.display='none';inf.textContent='';return}
- const mb=f.size/1048576;pv.src=URL.createObjectURL(f);pv.style.display='block';
- pv.onloadedmetadata=()=>{if(isFinite(pv.duration)){ADD.dur=Math.round(pv.duration);inf.textContent=`Length ${fmtDur(ADD.dur)} · ${mb.toFixed(1)} MB. Play it to check before saving.`+(mb>SETTINGS.maxMB?` This is over the ${SETTINGS.maxMB} MB limit and will not upload until the plan is upgraded.`:'')}};
- inf.textContent=`${mb.toFixed(1)} MB. Play it to check before saving.`}
+ if(ADD.file)fileChosen(ADD.file,ADD.gapMsg)}
+function fileChosen(f,gapMsg){
+ ADD.file=f;ADD.dur=ADD.dur||null;const pv=$('pv'),inf=$('pvinfo');if(!pv)return;
+ if(!f){$('rec_done').style.display='none';return}
+ $('rec_done').style.display='block';$('recbox').style.display='none';$('rec_live').style.display='none';
+ const mb=f.size/1048576;pv.src=URL.createObjectURL(f);
+ const note=()=>{inf.textContent=`${ADD.dur?'Length '+fmtDur(ADD.dur)+' · ':''}${mb.toFixed(1)} MB. Play it to check before saving.`+(mb>SETTINGS.maxMB?` This is over the ${SETTINGS.maxMB} MB limit and will not upload until the plan is upgraded.`:'')};
+ pv.onloadedmetadata=()=>{if(!ADD.dur&&isFinite(pv.duration)){ADD.dur=Math.round(pv.duration)}note()};note();
+ const g=$('gap');if(gapMsg){g.textContent=gapMsg;g.style.display='block'}else g.style.display='none'}
+
+/* ---------- in-app recorder (saves progress every few seconds so a crash loses little) ---------- */
+let REC={state:'idle'};
+const idb=()=>new Promise((res,rej)=>{const r=indexedDB.open('dadsvoice',1);r.onupgradeneeded=()=>{r.result.createObjectStore('chunks',{keyPath:'k'});r.result.createObjectStore('meta')};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+const idbDo=async(store,mode,fn)=>{try{const d=await idb();return await new Promise((res,rej)=>{const t=d.transaction(store,mode),o=t.objectStore(store),rq=fn(o);t.oncomplete=()=>res(rq&&rq.result);t.onerror=()=>rej(t.error)})}catch(_){return null}};
+const idbClear=async()=>{await idbDo('chunks','readwrite',o=>o.clear());await idbDo('meta','readwrite',o=>o.clear())};
+async function idbPending(){const m=await idbDo('meta','readonly',o=>o.get('cur'));if(!m)return null;const c=await idbDo('chunks','readonly',o=>o.getAll());if(!c||!c.length)return null;return {m,c:c.sort((x,y)=>x.idx-y.idx)}}
+function wavBlob(parts,rate,samples){const h=new ArrayBuffer(44),v=new DataView(h),w=(o,s)=>[...s].forEach((c,i)=>v.setUint8(o+i,c.charCodeAt(0)));
+ w(0,'RIFF');v.setUint32(4,36+samples*2,true);w(8,'WAVEfmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,rate,true);v.setUint32(28,rate*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,samples*2,true);
+ return new Blob([h,...parts],{type:'audio/wav'})}
+const fmtClock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+const elapsed=()=>REC.acc+(REC.paused?0:Date.now()-REC.t0);
+async function recStart(){
+ const err=$('err');err.style.display='none';const mode=$('q').value;try{localStorage.setItem('dv_q',mode)}catch(_){}
+ let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}})}
+ catch(e){err.textContent='The microphone is blocked. Tap the aA icon in Safari, choose Website Settings, and allow the Microphone. Then try again.';err.style.display='block';return}
+ await idbClear();
+ REC={state:'rec',mode,stream,t0:Date.now(),acc:0,paused:false,parts:[],idx:0,interrupted:false,samples:0,buf:[],bufN:0,sid:Date.now()};
+ try{REC.wl=await navigator.wakeLock?.request('screen')}catch(_){}
+ const tr=stream.getAudioTracks()[0];tr.onended=()=>{REC.interrupted=true};tr.onmute=()=>{REC.interrupted=true};
+ const flushMeta=extra=>idbDo('meta','readwrite',o=>o.put({sid:REC.sid,book:ADD.book,chapters:[...ADD.sel],mode,rate:REC.rate||0,type:REC.type||'',started:new Date().toISOString(),...extra},'cur'));
+ if(mode==='wav'){
+  const AC=window.AudioContext||window.webkitAudioContext;REC.ctx=new AC();await REC.ctx.resume();REC.rate=REC.ctx.sampleRate;
+  const src=REC.ctx.createMediaStreamSource(stream),proc=REC.ctx.createScriptProcessor(4096,1,1),mute=REC.ctx.createGain();mute.gain.value=0;
+  src.connect(proc);proc.connect(mute);mute.connect(REC.ctx.destination);REC.proc=proc;REC.src=src;
+  proc.onaudioprocess=e=>{if(REC.paused||REC.state!=='rec')return;const f=e.inputBuffer.getChannelData(0),i16=new Int16Array(f.length);let pk=0;
+   for(let i=0;i<f.length;i++){const x=Math.max(-1,Math.min(1,f[i]));if(Math.abs(x)>pk)pk=Math.abs(x);i16[i]=x<0?x*32768:x*32767}
+   REC.buf.push(i16);REC.bufN+=i16.length;REC.samples+=i16.length;const l=$('lvl');if(l)l.style.width=Math.min(100,pk*140)+'%';
+   if(REC.bufN>=REC.rate*5)flushWav()};
+  REC.flushWav=flushWav;
+  function flushWav(){if(!REC.bufN)return;const b=new Blob(REC.buf);REC.buf=[];REC.bufN=0;REC.parts.push(b);idbDo('chunks','readwrite',o=>o.put({k:REC.sid+'-'+REC.idx,sid:REC.sid,idx:REC.idx++,blob:b}));flushMeta({samples:REC.samples})}
+ }else{
+  const types=['audio/mp4;codecs=mp4a.40.2','audio/mp4','audio/webm;codecs=opus'],type=types.find(t=>window.MediaRecorder&&MediaRecorder.isTypeSupported(t))||'';REC.type=type;
+  REC.mr=new MediaRecorder(stream,type?{mimeType:type,audioBitsPerSecond:256000}:{audioBitsPerSecond:256000});
+  REC.mr.ondataavailable=e=>{if(e.data&&e.data.size){REC.parts.push(e.data);idbDo('chunks','readwrite',o=>o.put({k:REC.sid+'-'+REC.idx,sid:REC.sid,idx:REC.idx++,blob:e.data}))}};
+  REC.mr.start(5000);
+  const an=(()=>{const AC=window.AudioContext||window.webkitAudioContext;REC.ctx=new AC();const a=REC.ctx.createAnalyser();REC.ctx.createMediaStreamSource(stream).connect(a);return a})(),d=new Uint8Array(an.fftSize);
+  REC.lv=setInterval(()=>{an.getByteTimeDomainData(d);let pk=0;d.forEach(x=>{pk=Math.max(pk,Math.abs(x-128)/128)});const l=$('lvl');if(l)l.style.width=Math.min(100,pk*140)+'%'},120);
+ }
+ flushMeta({});
+ $('recbox').style.display='none';$('rec_live').style.display='block';$('rec_pause').textContent='Pause';
+ REC.tk=setInterval(()=>{const t=$('rec_time');if(t)t.textContent=fmtClock(elapsed()/1000)},250)}
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&REC.state==='rec')REC.interrupted=true});
+function recPause(){
+ if(REC.state!=='rec')return;
+ if(REC.paused){REC.paused=false;REC.t0=Date.now();REC.mr?.resume();$('rec_pause').textContent='Pause'}
+ else{REC.acc+=Date.now()-REC.t0;REC.paused=true;REC.mr?.pause();$('rec_pause').textContent='Resume'}}
+async function recStop(){
+ if(REC.state!=='rec')return;const wall=elapsed()/1000;REC.state='stopping';clearInterval(REC.tk);clearInterval(REC.lv);
+ let blob,ext,type,secs;
+ if(REC.mode==='wav'){REC.flushWav&&REC.flushWav();REC.proc.disconnect();REC.src.disconnect();blob=wavBlob(REC.parts,REC.rate,REC.samples);ext='wav';type='audio/wav';secs=REC.samples/REC.rate}
+ else{await new Promise(r=>{REC.mr.onstop=r;REC.mr.stop()});type=(REC.type||'audio/mp4').split(';')[0];blob=new Blob(REC.parts,{type});ext=type.includes('webm')?'webm':'m4a';secs=wall}
+ REC.stream.getTracks().forEach(t=>t.stop());try{REC.ctx.close()}catch(_){}try{REC.wl?.release()}catch(_){}
+ const a=[...ADD.sel].sort((x,y)=>x-y),nm=`${today()} ${ADD.book}${a.length?' '+a[0]+(a.length>1?'-'+a[a.length-1]:''):''}.${ext}`;
+ const missing=wall-secs;let gap=null;
+ if(REC.mode==='wav'&&missing>3)gap=`About ${Math.round(missing)} seconds of this recording are missing, probably because the screen locked or you left the app. Listen all the way through. If it matters, tap Record again.`;
+ else if(REC.interrupted)gap='The screen locked or you left the app during this recording. Listen all the way through before saving, and tap Record again if anything is missing.';
+ ADD.dur=Math.round(secs);ADD.gapMsg=gap;REC={state:'idle'};
+ fileChosen(new File([blob],nm,{type}),gap)}
+function recAgain(){ADD.file=null;ADD.dur=null;ADD.gapMsg=null;idbClear();$('rec_done').style.display='none';$('recbox').style.display='block'}
+async function recoverPending(){
+ const p=await idbPending();if(!p)return;const m=p.m;let blob,ext;
+ if(m.mode==='wav'){const sizes=p.c.reduce((n,c)=>n+c.blob.size,0);blob=wavBlob(p.c.map(c=>c.blob),m.rate,sizes/2);ext='wav'}
+ else{const t=(m.type||'audio/mp4').split(';')[0];blob=new Blob(p.c.map(c=>c.blob),{type:t});ext=t.includes('webm')?'webm':'m4a'}
+ ADD={book:m.book,sel:new Set(m.chapters||[]),file:new File([blob],'recovered.'+ext,{type:blob.type}),dur:m.mode==='wav'?Math.round(m.rate?blob.size/2/m.rate:0):null,gapMsg:'This is a recovered recording. The last few seconds may be missing. Listen all the way through.'};
+ location.hash='#/review';if(location.hash==='#/review')reviewPage()}
+async function copyToPhone(){
+ const f=ADD.file;if(!f)return;
+ try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:f.name});return}}catch(e){if(e.name==='AbortError')return}
+ const u=URL.createObjectURL(f),l=document.createElement('a');l.href=u;l.download=f.name;document.body.appendChild(l);l.click();l.remove()}
 async function save(){
  const err=$('err');err.style.display='none';
  if(!ADD.file){err.textContent='Choose the recording first.';err.style.display='block';return}
@@ -184,7 +265,7 @@ async function save(){
   const row={read_date:$('f_date').value||today(),book:ADD.book,first_ch:sp?null:a[0],last_ch:sp?null:a[a.length-1],audio_path:path,duration_sec:ADD.dur,
    song_title:$('f_song').value.trim()||null,song_artist:$('f_artist').value.trim()||null,song_url:$('f_url').value.trim()||null,title:sp?($('f_title').value.trim()||null):null};
   const ins=await sb.from('readings').insert(row);if(ins.error){await sb.storage.from('recordings').remove([path]);throw ins.error}
-  bar.style.width='100%';await load();toast('Saved. Your reading is in the book.');
+  bar.style.width='100%';await idbClear();await load();toast('Saved. Your reading is in the book.');
   location.hash=sp?'#/special/'+encodeURIComponent(ADD.book):lk(ADD.book,a[0]);ADD={book:'',sel:new Set(),file:null,dur:null};
  }catch(e){err.textContent='Not saved: '+(e.message||e)+(String(e.message||'').match(/size|large|limit/i)?' (The recording is bigger than the plan allows.)':'');err.style.display='block';$('save').disabled=false}
  finally{clearInterval(tick);try{wl?.release()}catch(_){}}}
@@ -252,7 +333,8 @@ app.addEventListener('click',async e=>{
  if(t.id==='signout'){await sb.auth.signOut();UID=null;E=[];signin();return}
  const pc=t.closest('.pickc');if(pc){const c=+pc.dataset.c;ADD.sel.has(c)?ADD.sel.delete(c):ADD.sel.add(c);pc.classList.toggle('on');plan();return}
  if(t.id==='save'){save();return}
- if(t.id==='discard'){if(confirm('Discard this recording without saving?')){ADD={book:'',sel:new Set(),file:null,dur:null};location.hash='#/'}return}
+ if(t.id==='rec_start'){recStart();return}if(t.id==='rec_pause'){recPause();return}if(t.id==='rec_stop'){recStop();return}if(t.id==='rec_again'){recAgain();return}if(t.id==='copy_phone'){copyToPhone();return}if(t.id==='recover'){recoverPending();return}
+ if(t.id==='discard'){if(confirm('Discard this recording without saving?')){ADD={book:'',sel:new Set(),file:null,dur:null};idbClear();location.hash='#/'}return}
  if(t.id==='e_save'){editSave(t.dataset.id);return}
  if(t.id==='e_del'){softDelete(t.dataset.id);return}
  if(t.id==='cplink'){const l=$('lnk').textContent;(navigator.clipboard?navigator.clipboard.writeText(l):Promise.reject()).then(()=>t.textContent='Copied',()=>t.textContent='Press and hold the link above to copy');return}
@@ -263,10 +345,11 @@ app.addEventListener('click',async e=>{
  document.querySelectorAll('audio').forEach(x=>{if(x!==au&&x.id!=='pv')x.pause()});
  if(!au.src){au.src=b.dataset.a;au.onerror=()=>{au.style.display='none';au.nextElementSibling.style.display='block'}}
  au.style.display='block';au.paused?au.play().catch(()=>{}):au.pause()});
-app.addEventListener('change',e=>{if(e.target.id==='d1'||e.target.id==='d2')dres();if(e.target.id==='f_file')fileChosen(e.target.files[0])});
-addEventListener('hashchange',()=>{if(FAM||UID)route()});
+app.addEventListener('change',e=>{if(e.target.id==='d1'||e.target.id==='d2')dres();if(e.target.id==='f_file'){ADD.dur=null;ADD.gapMsg=null;fileChosen(e.target.files[0])}});
+addEventListener('hashchange',()=>{if(REC.state==='rec'||REC.state==='stopping'){if(location.hash!=='#/review'){location.hash='#/review';toast('Tap Stop and review before leaving this page.')}return}if(FAM||UID)route()});
 async function start(){
  try{await load()}catch(e){app.innerHTML=`<div class="card"><h3>The book could not open</h3><p class="msg">${esc(e.message||e)}</p><p>Check your internet connection and try again.</p></div>`;return}
+ if(!FAM)PENDING=!!(await idbPending());
  route()}
 (async()=>{
  if(!FAM){const {data}=await sb.auth.getSession();if(data.session)UID=data.session.user.id}
