@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Dad's Voice">
+<link rel="apple-touch-icon" href="icon.png">
+<title>The Word in Dad's Voice</title>
+<style>
+:root{--leather:#4b1f1a;--leather2:#6b2e24;--gold:#b8923a;--paper:#efe3c8;--page:#f7efdc;--edge:#d6c294;--ink:#2e2118;--soft:#6e5a45}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper) radial-gradient(ellipse at top,#f6ecd3,#e6d6b2);color:var(--ink);font:18px/1.6 Georgia,"Palatino Linotype",Palatino,serif;min-height:100vh}
+header{background:linear-gradient(var(--leather2),var(--leather));color:#f3e4bd;text-align:center;padding:26px 16px 22px;border-bottom:4px double var(--gold)}
+header a{color:inherit;text-decoration:none}
+h1{margin:0;font-weight:normal;font-size:clamp(26px,6vw,40px);letter-spacing:.02em}
+header p{margin:6px 0 0;font-style:italic;color:#d9c48f}
+main{max-width:860px;margin:0 auto;padding:20px 14px 70px}
+h2{font-weight:normal;font-size:23px;border-bottom:1px solid var(--gold);padding-bottom:4px;margin:30px 0 12px}
+.grid3{display:grid;gap:8px;grid-template-columns:repeat(3,1fr)}
+.grid3 .tile{padding:10px 6px;text-align:center;font-size:15px;line-height:1.25;min-height:50px;display:flex;align-items:center;justify-content:center}
+.chs{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(56px,1fr))}
+.tile{display:block;background:var(--page);border:1px solid var(--edge);border-radius:4px;padding:10px 12px;color:var(--ink);text-decoration:none;font:inherit}
+.tile:hover,.tile:focus-visible{border-color:var(--leather);outline:2px solid var(--gold)}
+.chs .tile{text-align:center;padding:12px 0;font-size:20px;position:relative;cursor:pointer}
+.chs .tile.read{background:var(--leather2);color:#f6e7c1;border-color:var(--leather)}
+.chs .tile.long::after{content:"";position:absolute;top:5px;right:5px;width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 1px #fff8}
+.chs .tile.on{background:var(--leather);color:#f6e7c1;outline:3px solid var(--gold)}
+.start{display:block;text-align:center;background:var(--leather);color:#f3e4bd;border:2px solid var(--gold);border-radius:4px;padding:16px;font-size:21px;text-decoration:none;margin-bottom:12px}
+.crumb{font-size:16px;margin-bottom:6px}.crumb .back{display:inline-block;margin:0 8px 10px 0;padding:8px 14px;border:2px solid var(--leather);border-radius:4px;color:var(--leather);text-decoration:none;background:var(--page)}
+.card{background:var(--page);border:1px solid var(--edge);border-left:5px solid var(--gold);border-radius:4px;padding:16px 18px;margin:16px 0}
+.card h3{margin:0 0 10px;font-weight:normal;font-size:20px;font-style:italic}
+.btn{display:block;width:100%;margin:8px 0;padding:14px 16px;font:inherit;font-size:19px;text-align:center;border-radius:4px;cursor:pointer;text-decoration:none}
+.play{background:var(--leather);color:#f3e4bd;border:2px solid var(--gold)}
+.song{background:transparent;color:var(--leather);border:2px solid var(--leather)}
+.song:hover,.play:hover{filter:brightness(1.1)}
+.small{display:inline-block;width:auto;font-size:16px;padding:8px 14px;margin:6px 8px 0 0}
+.danger{color:#8a2c1b;border-color:#8a2c1b}
+.meta{margin:2px 0 0;text-align:center;color:var(--soft);font-size:16px}
+.msg{color:#8a2c1b;font-size:16px;margin:6px 0 0}
+.note{text-align:center;color:var(--soft);font-style:italic;margin-top:24px}
+audio{width:100%;margin-top:8px;display:none}
+.nav{display:flex;justify-content:space-between;gap:10px;margin-top:28px;font-size:17px}.nav a{color:var(--leather2)}
+label{display:block;margin:12px 0 2px;color:var(--soft);font-size:16px}
+input,select,textarea{width:100%;font:inherit;font-size:19px;padding:10px;border:1px solid var(--edge);border-radius:4px;background:#fff8e8;color:var(--ink)}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.long-btn{display:block;text-decoration:none;color:var(--ink);background:var(--page);border:1px solid var(--edge);border-left:5px solid var(--gold);border-radius:4px;padding:12px 14px;margin:8px 0}
+.long-btn small{color:var(--soft);display:block;font-size:15px}
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--leather);color:#f3e4bd;padding:12px 20px;border-radius:24px;border:2px solid var(--gold);display:none;z-index:9;max-width:90%;text-align:center}
+.bar{height:10px;background:#e0cfa6;border-radius:5px;overflow:hidden;margin-top:10px}.bar i{display:block;height:100%;width:0;background:var(--gold)}
+</style></head><body>
+<header><a href="#/"><h1 id="t"></h1></a><p id="s"></p></header>
+<main id="app"><p class="note">Opening the book…</p></main>
+<div id="toast"></div>
+<script src="books.js"></script><script src="settings.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const app=document.getElementById('app'),$=s=>document.getElementById(s);
+document.title=SETTINGS.title;$('t').textContent=SETTINGS.title;$('s').textContent=SETTINGS.subtitle;
+const size=Object.fromEntries(BOOKS),SPECIAL=['Start Here','Random Thoughts'];
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const safeUrl=u=>/^https?:\/\//i.test(u||'')?u:'';
+const when=d=>new Date(d+'T12:00:00').toLocaleDateString(undefined,{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+const today=()=>new Date().toLocaleDateString('en-CA');
+const fmtDur=s=>{if(!s)return'';const m=Math.max(1,Math.round(s/60));return m<60?m+' min':Math.floor(m/60)+' hr'+(m%60?' '+m%60+' min':'')};
+const toast=t=>{const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',3500)};
+const lk=(b,c)=>`#/c/${encodeURIComponent(b)}/${c}`;
+const rangeLabel=e=>e.book+(e.from?' '+e.from+(e.to>e.from?'-'+e.to:''):'');
+
+/* ---------- mode and sign-in ---------- */
+const sb=supabase.createClient(SETTINGS.supabaseUrl,SETTINGS.supabaseKey);
+const qs=new URLSearchParams(location.search);let FAM=null,UID=null;
+try{if(qs.get('owner'))localStorage.removeItem('dv_fam');else if(qs.get('f'))localStorage.setItem('dv_fam',qs.get('f'));FAM=localStorage.getItem('dv_fam')}catch(e){FAM=qs.get('f')}
+if(!FAM&&qs.get('f'))FAM=qs.get('f');
+let E=[],TRASH=[],by={},LONG=[];
+const norm=r=>({id:r.id,date:r.read_date,book:r.book,from:r.first_ch,to:r.last_ch,path:r.audio_path,dur:r.duration_sec,song:r.song_title,artist:r.song_artist,url:r.song_url,title:r.title,del:r.deleted_at});
+const audioUrl=p=>sb.storage.from('recordings').getPublicUrl(p).data.publicUrl;
+async function load(){
+ if(FAM){const {data,error}=await sb.rpc('family_readings',{code:FAM});if(error)throw error;E=(data||[]).map(norm);TRASH=[]}
+ else{const {data,error}=await sb.from('readings').select('*').order('read_date').order('created_at');if(error)throw error;const all=(data||[]).map(norm);E=all.filter(e=>!e.del);TRASH=all.filter(e=>e.del);purge()}
+ by={};LONG=E.filter(e=>e.dur>=SETTINGS.longMinutes*60&&e.from);
+ E.forEach(e=>{if(e.from)for(let c=e.from;c<=e.to;c++)(by[e.book+'|'+c]??=[]).push(e)});
+}
+async function purge(){const old=TRASH.filter(e=>Date.now()-new Date(e.del)>30*864e5);for(const e of old){try{await sb.storage.from('recordings').remove([e.path]);await sb.from('readings').delete().eq('id',e.id)}catch(_){}}TRASH=TRASH.filter(e=>!old.includes(e))}
+
+/* ---------- shared pieces ---------- */
+const back=(h,l)=>`<a class="back" href="${h}">&larr; ${esc(l)}</a>`;
+const tile=(href,txt)=>`<a class="tile" href="${href}">${esc(txt)}</a>`;
+const shelf=(list,pre)=>'<div class="grid3">'+list.map(([b])=>tile(pre+encodeURIComponent(b),b)).join('')+'</div>';
+function card(e,head){
+ const url=safeUrl(e.url);let h=`<div class="card"><h3>${head||when(e.date)}</h3>`;
+ if(e.title)h+=`<p style="margin:0 0 6px;font-size:20px">${esc(e.title)}</p>`;
+ h+=`<button class="btn play" data-a="${esc(audioUrl(e.path))}">Listen${e.dur?' &middot; '+fmtDur(e.dur):''}</button><audio controls preload="none"></audio><p class="msg" style="display:none">This recording could not be played.</p>`;
+ if(url)h+=`<a class="btn song" href="${esc(url)}" target="_blank" rel="noopener">What I'm Listening to Today</a>`;
+ if(e.song)h+=`<p class="meta">${url?'':"What I'm Listening to Today: "}${esc(e.song)}${e.artist?' by '+esc(e.artist):''}</p>`;
+ if(!FAM)h+=`<a class="btn song small" href="#/edit/${e.id}">Edit</a>`;
+ return h+'</div>'}
+
+/* ---------- pages ---------- */
+function home(){
+ let h='';
+ if(!FAM)h+=`<a class="btn play" href="#/add" style="font-size:22px;padding:18px">Add a reading</a>`;
+ if(E.some(e=>e.book==='Start Here'))h+=`<a class="start" href="#/special/Start%20Here">Start here: a message from Dad</a>`;
+ h+=`<a class="btn song" href="#/date">Find a reading by date</a>`;
+ if(E.some(e=>e.book==='Random Thoughts'))h+=`<a class="btn song" href="#/special/Random%20Thoughts">Dad's Writings</a>`;
+ h+='<h2>Old Testament</h2>'+shelf(BOOKS.slice(0,OT_COUNT),'#/b/')+'<h2>New Testament</h2>'+shelf(BOOKS.slice(OT_COUNT),'#/b/');
+ if(!FAM)h+=`<p style="margin-top:36px;text-align:center"><a class="btn song small" href="#/share">Family link</a><a class="btn song small" href="#/trash">Recently deleted${TRASH.length?' ('+TRASH.length+')':''}</a><button class="btn song small" id="signout">Sign out</button></p>`;
+ app.innerHTML=h}
+function special(b){
+ const L=E.filter(e=>e.book===b).sort((x,y)=>x.date<y.date?-1:1),name=b==='Start Here'?'A message from Dad':"Dad's Writings";
+ let h=`<p class="crumb">${back('#/','Back to All Books')}</p><h2 style="margin-top:8px">${name}</h2>`;
+ h+=L.length?L.map(e=>card(e)).join(''):'<p>Nothing here yet.</p>';app.innerHTML=h}
+function bookPage(b){
+ const n=size[b],read=new Set(),lg=new Set();
+ E.forEach(e=>{if(e.book===b&&e.from)for(let c=e.from;c<=e.to;c++){read.add(c);if(LONG.includes(e))lg.add(c)}});
+ let h=`<p class="crumb">${back('#/','Back to All Books')}</p><h2 style="margin-top:8px">${esc(b)}</h2><div class="chs">`;
+ for(let c=1;c<=n;c++)h+=`<a class="tile ${read.has(c)?'read':''} ${lg.has(c)?'long':''}" href="${lk(b,c)}">${c}</a>`;
+ h+='</div>';
+ const L=LONG.filter(e=>e.book===b);
+ if(L.length){h+='<h2>Longer Readings</h2>'+L.map(e=>`<a class="long-btn" href="${lk(b,e.from)}">${esc(rangeLabel(e))}<small>${fmtDur(e.dur)} &middot; ${when(e.date)}</small></a>`).join('')}
+ app.innerHTML=h}
+function chapter(b,c){
+ const L=(by[b+'|'+c]||[]).slice().sort((x,y)=>x.date<y.date?-1:1);
+ let h=`<p class="crumb">${back('#/','Back to All Books')}${back('#/b/'+encodeURIComponent(b),b)}</p><h2 style="margin-top:8px">${esc(b)} ${c}</h2>`;
+ h+=L.length?L.map(e=>card(e,when(e.date)+(e.to>e.from?`<br><span style="font-size:16px;color:var(--soft)">${esc(rangeLabel(e))}</span>`:''))).join(''):'<p>No recording of this chapter yet.</p>';
+ const i=BOOKS.findIndex(x=>x[0]===b);
+ const p=c>1?[b,c-1]:i>0?[BOOKS[i-1][0],BOOKS[i-1][1]]:0,nx=c<size[b]?[b,c+1]:i<BOOKS.length-1?[BOOKS[i+1][0],1]:0;
+ h+=`<div class="nav"><span>${p?`<a href="${lk(...p)}">&larr; ${esc(p[0])} ${p[1]}</a>`:''}</span><span>${nx?`<a href="${lk(...nx)}">${esc(nx[0])} ${nx[1]} &rarr;</a>`:''}</span></div>`;
+ app.innerHTML=h+`<p class="note">Open your own Bible to ${esc(b)} ${c} and read along.</p>`}
+function dateSearch(){
+ app.innerHTML=`<p class="crumb">${back('#/','Back to All Books')}</p><h2 style="margin-top:8px">Find a reading by date</h2><div class="card"><label>From (optional)</label><input type="date" id="d1"><label>To (optional)</label><input type="date" id="d2"></div><div id="res"></div>`;dres()}
+function dres(){
+ const a=$('d1').value,z=$('d2').value,L=E.filter(e=>(!a||e.date>=a)&&(!z||e.date<=z)).sort((x,y)=>x.date<y.date?-1:x.date>y.date?1:0);
+ $('res').innerHTML=(L.length?`<p>${L.length} reading${L.length>1?'s':''} found.</p>`:'<p>No readings in this range.</p>')+L.map(e=>card(e,when(e.date)+`<br><span style="font-size:16px;color:var(--soft)">${esc(e.from?rangeLabel(e):e.book)}</span>`)).join('')}
+
+/* ---------- owner: add a reading ---------- */
+let ADD={book:'',sel:new Set(),file:null,dur:null};
+function addHome(){
+ ADD={book:'',sel:new Set(),file:null,dur:null};
+ app.innerHTML=`<p class="crumb">${back('#/','Back to All Books')}</p><h2 style="margin-top:8px">What did you read?</h2>
+ <a class="btn song" href="#/add/Start%20Here">Start Here (introduction)</a><a class="btn song" href="#/add/Random%20Thoughts">Random Thoughts (my writings)</a>
+ <h2>Old Testament</h2>${shelf(BOOKS.slice(0,OT_COUNT),'#/add/')}<h2>New Testament</h2>${shelf(BOOKS.slice(OT_COUNT),'#/add/')}`}
+function addBook(b){
+ if(SPECIAL.includes(b)){ADD={book:b,sel:new Set(),file:null,dur:null};location.hash='#/review';return}
+ ADD={book:b,sel:new Set(),file:null,dur:null};
+ let h=`<p class="crumb">${back('#/add','Back to All Books')}</p><h2 style="margin-top:8px">${esc(b)}</h2><p>Tap each chapter you read. Pick chapters that follow one another, such as 5, 6, 7.</p><div class="chs">`;
+ for(let c=1;c<=size[b];c++)h+=`<button class="tile pickc" data-c="${c}">${c}</button>`;
+ app.innerHTML=h+'</div><div id="plan"></div>'}
+function plan(){
+ const a=[...ADD.sel].sort((x,y)=>x-y),el=$('plan');
+ if(!a.length){el.innerHTML='';return}
+ if(a[a.length-1]-a[0]+1!==a.length){el.innerHTML='<p class="msg">Pick chapters that follow one another, such as 5, 6, 7.</p>';return}
+ el.innerHTML=`<div class="card"><h3>${esc(ADD.book)} ${a[0]}${a.length>1?'-'+a[a.length-1]:''}</h3><a class="btn play" href="#/review">Continue</a></div>`}
+function reviewPage(){
+ if(!ADD.book){location.hash='#/add';return}
+ const a=[...ADD.sel].sort((x,y)=>x-y),sp=SPECIAL.includes(ADD.book);
+ const what=sp?(ADD.book==='Start Here'?'Start Here (introduction)':'Random Thoughts (my writings)'):`${ADD.book} ${a[0]}${a.length>1?'-'+a[a.length-1]:''}`;
+ app.innerHTML=`<p class="crumb">${back(sp?'#/add':'#/add/'+encodeURIComponent(ADD.book),'Change')}</p><h2 style="margin-top:8px">${esc(what)}</h2>
+ <div class="card"><h3>1. Choose the recording</h3>
+ <p style="margin:0;font-size:16px;color:var(--soft)">Tap Choose File, then Browse, then iCloud Drive, DadsVoice, audio.</p>
+ <input type="file" id="f_file" accept="audio/*,.m4a,.mp4,.mp3,.wav,.caf"><audio id="pv" controls style="display:block;margin-top:12px"></audio><p id="pvinfo" class="meta"></p></div>
+ <div class="card"><h3>2. Details</h3>
+ <label>Date read</label><input type="date" id="f_date" value="${today()}">
+ ${sp?'<label>Title</label><input id="f_title" placeholder="For example: Forged in the Furnace">':''}
+ <label>Song link, YouTube is best (optional)</label><input id="f_url" type="url" inputmode="url" placeholder="Paste link here">
+ <div class="row"><div><label>Song name (optional)</label><input id="f_song"></div><div><label>Artist (optional)</label><input id="f_artist"></div></div></div>
+ <button class="btn play" id="save">Save this reading</button><button class="btn song" id="discard">Discard</button>
+ <div id="prog" style="display:none"><div class="bar"><i></i></div><p class="meta">Uploading. Keep this screen open until it finishes.</p></div><p class="msg" id="err" style="display:none"></p>`;
+ $('pv').style.display='none'}
+function fileChosen(f){
+ ADD.file=f;ADD.dur=null;const pv=$('pv'),inf=$('pvinfo');if(!f){pv.style.display='none';inf.textContent='';return}
+ const mb=f.size/1048576;pv.src=URL.createObjectURL(f);pv.style.display='block';
+ pv.onloadedmetadata=()=>{if(isFinite(pv.duration)){ADD.dur=Math.round(pv.duration);inf.textContent=`Length ${fmtDur(ADD.dur)} · ${mb.toFixed(1)} MB. Play it to check before saving.`+(mb>SETTINGS.maxMB?` This is over the ${SETTINGS.maxMB} MB limit and will not upload until the plan is upgraded.`:'')}};
+ inf.textContent=`${mb.toFixed(1)} MB. Play it to check before saving.`}
+async function save(){
+ const err=$('err');err.style.display='none';
+ if(!ADD.file){err.textContent='Choose the recording first.';err.style.display='block';return}
+ const a=[...ADD.sel].sort((x,y)=>x-y),sp=SPECIAL.includes(ADD.book);
+ if(!sp&&!a.length){location.hash='#/add';return}
+ $('save').disabled=true;$('prog').style.display='block';let wl;try{wl=await navigator.wakeLock?.request('screen')}catch(_){}
+ const bar=$('prog').querySelector('i');let pct=5;const tick=setInterval(()=>{pct=Math.min(90,pct+3);bar.style.width=pct+'%'},1500);bar.style.width='5%';
+ try{
+  const f=ADD.file,ext=(f.name.split('.').pop()||'m4a').toLowerCase().replace(/[^a-z0-9]/g,'')||'m4a';
+  const path=`${UID}/${crypto.randomUUID()}.${ext}`;
+  const up=await sb.storage.from('recordings').upload(path,f,{contentType:f.type||'audio/mp4'});if(up.error)throw up.error;
+  const row={read_date:$('f_date').value||today(),book:ADD.book,first_ch:sp?null:a[0],last_ch:sp?null:a[a.length-1],audio_path:path,duration_sec:ADD.dur,
+   song_title:$('f_song').value.trim()||null,song_artist:$('f_artist').value.trim()||null,song_url:$('f_url').value.trim()||null,title:sp?($('f_title').value.trim()||null):null};
+  const ins=await sb.from('readings').insert(row);if(ins.error){await sb.storage.from('recordings').remove([path]);throw ins.error}
+  bar.style.width='100%';await load();toast('Saved. Your reading is in the book.');
+  location.hash=sp?'#/special/'+encodeURIComponent(ADD.book):lk(ADD.book,a[0]);ADD={book:'',sel:new Set(),file:null,dur:null};
+ }catch(e){err.textContent='Not saved: '+(e.message||e)+(String(e.message||'').match(/size|large|limit/i)?' (The recording is bigger than the plan allows.)':'');err.style.display='block';$('save').disabled=false}
+ finally{clearInterval(tick);try{wl?.release()}catch(_){}}}
+
+/* ---------- owner: edit, delete, share ---------- */
+function editPage(id){
+ const e=E.find(x=>x.id===id);if(!e){location.hash='#/';return}
+ const sp=SPECIAL.includes(e.book);
+ app.innerHTML=`<p class="crumb">${back(sp?'#/special/'+encodeURIComponent(e.book):lk(e.book,e.from),'Back')}</p><h2 style="margin-top:8px">Edit this reading</h2>
+ <div class="card"><label>Date read</label><input type="date" id="e_date" value="${e.date}">
+ ${sp?`<label>Title</label><input id="e_title" value="${esc(e.title)}">`:`<label>Book</label><select id="e_book">${BOOKS.map(([b])=>`<option ${b===e.book?'selected':''}>${esc(b)}</option>`).join('')}</select>
+ <div class="row"><div><label>First chapter</label><input id="e_from" type="number" min="1" value="${e.from}"></div><div><label>Last chapter</label><input id="e_to" type="number" min="1" value="${e.to}"></div></div>`}
+ <label>Song link (optional)</label><input id="e_url" type="url" value="${esc(e.url)}">
+ <div class="row"><div><label>Song name</label><input id="e_song" value="${esc(e.song)}"></div><div><label>Artist</label><input id="e_artist" value="${esc(e.artist)}"></div></div>
+ <label>Re-record: choose a new recording to replace this one (optional)</label><input type="file" id="e_file" accept="audio/*,.m4a,.mp4,.mp3,.wav,.caf"></div>
+ <button class="btn play" id="e_save" data-id="${id}">Save changes</button><button class="btn song danger" id="e_del" data-id="${id}">Delete this reading</button><p class="msg" id="err" style="display:none"></p>`}
+async function editSave(id){
+ const e=E.find(x=>x.id===id),sp=SPECIAL.includes(e.book),err=$('err');err.style.display='none';$('e_save').disabled=true;
+ try{
+  const up={read_date:$('e_date').value||e.date,song_url:$('e_url').value.trim()||null,song_title:$('e_song').value.trim()||null,song_artist:$('e_artist').value.trim()||null};
+  if(sp)up.title=$('e_title').value.trim()||null;else{const b=$('e_book').value,f=Math.max(1,+$('e_from').value||1),t=Math.max(f,+$('e_to').value||f);
+   if(f>size[b]||t>size[b])throw new Error(b+' has only '+size[b]+' chapters.');up.book=b;up.first_ch=f;up.last_ch=t}
+  const nf=$('e_file').files[0];let old=null;
+  if(nf){const ext=(nf.name.split('.').pop()||'m4a').toLowerCase().replace(/[^a-z0-9]/g,'')||'m4a',path=`${UID}/${crypto.randomUUID()}.${ext}`;
+   const r=await sb.storage.from('recordings').upload(path,nf,{contentType:nf.type||'audio/mp4'});if(r.error)throw r.error;
+   up.audio_path=path;old=e.path;const au=new Audio(URL.createObjectURL(nf));await new Promise(res=>{au.onloadedmetadata=res;au.onerror=res;setTimeout(res,4000)});up.duration_sec=isFinite(au.duration)?Math.round(au.duration):null}
+  const r=await sb.from('readings').update(up).eq('id',id);if(r.error)throw r.error;
+  if(old)await sb.storage.from('recordings').remove([old]);
+  await load();toast('Changes saved.');history.back();
+ }catch(x){err.textContent='Not saved: '+(x.message||x);err.style.display='block';$('e_save').disabled=false}}
+async function softDelete(id){
+ if(!confirm('Move this reading to Recently Deleted? You can bring it back for 30 days.'))return;
+ const r=await sb.from('readings').update({deleted_at:new Date().toISOString()}).eq('id',id);if(r.error){alert('Could not delete: '+r.error.message);return}
+ await load();toast('Moved to Recently Deleted.');location.hash='#/'}
+function trashPage(){
+ let h=`<p class="crumb">${back('#/','Back to All Books')}</p><h2 style="margin-top:8px">Recently deleted</h2><p>Readings here are removed for good after 30 days.</p>`;
+ h+=TRASH.length?TRASH.map(e=>`<div class="card"><h3>${when(e.date)}</h3><p style="margin:0">${esc(e.title||rangeLabel(e))}${e.dur?' &middot; '+fmtDur(e.dur):''}</p><button class="btn play small" data-restore="${e.id}">Restore</button><button class="btn song danger small" data-forever="${e.id}">Delete forever</button></div>`).join(''):'<p>Nothing deleted.</p>';
+ app.innerHTML=h}
+async function sharePage(){
+ app.innerHTML=`<p class="crumb">${back('#/','Back to All Books')}</p><h2 style="margin-top:8px">Family link</h2><p>Opening...</p>`;
+ const {data,error}=await sb.from('settings').select('family_code').maybeSingle();
+ const link=data?location.origin+location.pathname+'?f='+data.family_code:'';
+ app.innerHTML=`<p class="crumb">${back('#/','Back to All Books')}</p><h2 style="margin-top:8px">Family link</h2>
+ <div class="card"><p style="margin-top:0">Anyone who has this link can listen to your book, and nothing else. It cannot add, change, or delete anything. Keep it private until you are ready to share it.</p>
+ ${link?`<p style="word-break:break-all;font-size:15px;background:#fff8e8;padding:10px;border:1px solid var(--edge)" id="lnk">${esc(link)}</p><button class="btn play" id="cplink">Copy family link</button>`:'<p class="msg">Could not load the link. '+esc(error?.message||'')+'</p>'}</div>`}
+
+/* ---------- router and events ---------- */
+function route(){
+ if(!FAM&&!UID){signin();return}
+ const p=location.hash.slice(1).split('/').map(decodeURIComponent);window.scrollTo(0,0);const k=p[1];
+ if(!FAM&&k==='add'){p[2]?addBook(p[2]):addHome();return}
+ if(!FAM&&k==='review'){reviewPage();return}
+ if(!FAM&&k==='edit'){editPage(p[2]);return}
+ if(!FAM&&k==='trash'){trashPage();return}
+ if(!FAM&&k==='share'){sharePage();return}
+ if(k==='date')dateSearch();else if(k==='special'&&SPECIAL.includes(p[2]))special(p[2]);
+ else if(k==='b'&&size[p[2]])bookPage(p[2]);
+ else if(k==='c'&&size[p[2]]&&p[3]>=1&&p[3]<=size[p[2]])chapter(p[2],+p[3]);else home()}
+function signin(){
+ app.innerHTML=`<div class="card"><h3>Sign in</h3><label>Email</label><input id="si_e" type="email" autocomplete="username" inputmode="email"><label>Password</label><input id="si_p" type="password" autocomplete="current-password">
+ <button class="btn play" id="si_go" style="margin-top:18px">Sign in</button><p class="msg" id="si_err" style="display:none"></p></div>`}
+app.addEventListener('click',async e=>{
+ const t=e.target;
+ if(t.id==='si_go'){const r=await sb.auth.signInWithPassword({email:$('si_e').value.trim(),password:$('si_p').value});if(r.error){$('si_err').textContent='That did not work: '+r.error.message;$('si_err').style.display='block';return}UID=r.data.user.id;await start();return}
+ if(t.id==='signout'){await sb.auth.signOut();UID=null;E=[];signin();return}
+ const pc=t.closest('.pickc');if(pc){const c=+pc.dataset.c;ADD.sel.has(c)?ADD.sel.delete(c):ADD.sel.add(c);pc.classList.toggle('on');plan();return}
+ if(t.id==='save'){save();return}
+ if(t.id==='discard'){if(confirm('Discard this recording without saving?')){ADD={book:'',sel:new Set(),file:null,dur:null};location.hash='#/'}return}
+ if(t.id==='e_save'){editSave(t.dataset.id);return}
+ if(t.id==='e_del'){softDelete(t.dataset.id);return}
+ if(t.id==='cplink'){const l=$('lnk').textContent;(navigator.clipboard?navigator.clipboard.writeText(l):Promise.reject()).then(()=>t.textContent='Copied',()=>t.textContent='Press and hold the link above to copy');return}
+ const rs=t.closest('[data-restore]');if(rs){await sb.from('readings').update({deleted_at:null}).eq('id',rs.dataset.restore);await load();toast('Restored.');trashPage();return}
+ const fv=t.closest('[data-forever]');if(fv){if(!confirm('Delete this reading and its recording forever? This cannot be undone.'))return;const x=TRASH.find(z=>z.id===fv.dataset.forever);
+  await sb.storage.from('recordings').remove([x.path]);await sb.from('readings').delete().eq('id',x.id);await load();trashPage();return}
+ const b=t.closest('.play');if(!b||b.tagName==='A'||!b.dataset.a)return;const au=b.nextElementSibling;
+ document.querySelectorAll('audio').forEach(x=>{if(x!==au&&x.id!=='pv')x.pause()});
+ if(!au.src){au.src=b.dataset.a;au.onerror=()=>{au.style.display='none';au.nextElementSibling.style.display='block'}}
+ au.style.display='block';au.paused?au.play().catch(()=>{}):au.pause()});
+app.addEventListener('change',e=>{if(e.target.id==='d1'||e.target.id==='d2')dres();if(e.target.id==='f_file')fileChosen(e.target.files[0])});
+addEventListener('hashchange',()=>{if(FAM||UID)route()});
+async function start(){
+ try{await load()}catch(e){app.innerHTML=`<div class="card"><h3>The book could not open</h3><p class="msg">${esc(e.message||e)}</p><p>Check your internet connection and try again.</p></div>`;return}
+ route()}
+(async()=>{
+ if(!FAM){const {data}=await sb.auth.getSession();if(data.session)UID=data.session.user.id}
+ if(FAM||UID)await start();else signin()})();
+</script></body></html>
