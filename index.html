@@ -102,12 +102,12 @@ function home(){
  if(!FAM)h+=`<a class="btn play" href="#/add" style="font-size:22px;padding:18px">Add a reading</a>`;
  if(E.some(e=>e.book==='Start Here'))h+=`<a class="start" href="#/special/Start%20Here">Start here: a message from Dad</a>`;
  h+=`<a class="btn song" href="#/date">Find a reading by date</a>`;
- if(E.some(e=>e.book==='Random Thoughts'))h+=`<a class="btn song" href="#/special/Random%20Thoughts">Dad's Writings</a>`;
+ if(E.some(e=>e.book==='Random Thoughts'))h+=`<a class="btn song" href="#/special/Random%20Thoughts">Random Thoughts &amp; Readings</a>`;
  h+='<h2>Old Testament</h2>'+shelf(BOOKS.slice(0,OT_COUNT),'#/b/')+'<h2>New Testament</h2>'+shelf(BOOKS.slice(OT_COUNT),'#/b/');
  if(!FAM)h+=`<p style="margin-top:36px;text-align:center"><a class="btn song small" href="#/share">Family link</a><a class="btn song small" href="#/trash">Recently deleted${TRASH.length?' ('+TRASH.length+')':''}</a><button class="btn song small" id="signout">Sign out</button></p>`;
  app.innerHTML=h}
 function special(b){
- const L=E.filter(e=>e.book===b).sort((x,y)=>x.date<y.date?-1:1),name=b==='Start Here'?'A message from Dad':"Dad's Writings";
+ const L=E.filter(e=>e.book===b).sort((x,y)=>x.date<y.date?-1:1),name=b==='Start Here'?'A message from Dad':'Random Thoughts &amp; Readings';
  let h=`<p class="crumb">${back('#/','Back to All Books')}</p><h2 style="margin-top:8px">${name}</h2>`;
  h+=L.length?L.map(e=>card(e)).join(''):'<p>Nothing here yet.</p>';app.innerHTML=h}
 function bookPage(b){
@@ -138,7 +138,7 @@ let ADD={book:'',sel:new Set(),file:null,dur:null};
 function addHome(){
  ADD={book:'',sel:new Set(),file:null,dur:null};
  app.innerHTML=`<p class="crumb">${back('#/','Back to All Books')}</p><h2 style="margin-top:8px">What did you read?</h2>
- <a class="btn song" href="#/add/Start%20Here">Start Here (introduction)</a><a class="btn song" href="#/add/Random%20Thoughts">Dad's Writings (thoughts, essays, letters)</a>
+ <a class="btn song" href="#/add/Start%20Here">Start Here (introduction)</a><a class="btn song" href="#/add/Random%20Thoughts">Random Thoughts &amp; Readings</a>
  <h2>Old Testament</h2>${shelf(BOOKS.slice(0,OT_COUNT),'#/add/')}<h2>New Testament</h2>${shelf(BOOKS.slice(OT_COUNT),'#/add/')}`}
 function addBook(b){
  if(SPECIAL.includes(b)){ADD={book:b,sel:new Set(),file:null,dur:null};location.hash='#/review';return}
@@ -154,7 +154,7 @@ function plan(){
 function reviewPage(){
  if(!ADD.book){location.hash='#/add';return}
  const a=[...ADD.sel].sort((x,y)=>x-y),sp=SPECIAL.includes(ADD.book);
- const what=sp?(ADD.book==='Start Here'?'Start Here (introduction)':"Dad's Writings"):`${ADD.book} ${a[0]}${a.length>1?'-'+a[a.length-1]:''}`;
+ const what=sp?(ADD.book==='Start Here'?'Start Here (introduction)':'Random Thoughts & Readings'):`${ADD.book} ${a[0]}${a.length>1?'-'+a[a.length-1]:''}`;
  let q='wav';try{q=localStorage.getItem('dv_q')||'wav'}catch(_){}
  app.innerHTML=`<p class="crumb">${back(sp?'#/add':'#/add/'+encodeURIComponent(ADD.book),'Change')}</p><h2 style="margin-top:8px">${esc(what)}</h2>
  <div class="card"><h3>1. Record</h3>
