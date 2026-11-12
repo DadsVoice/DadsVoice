@@ -71,7 +71,7 @@ const qs=new URLSearchParams(location.search);let FAM=null,UID=null;
 try{if(qs.get('owner'))localStorage.removeItem('dv_fam');else if(qs.get('f'))localStorage.setItem('dv_fam',qs.get('f'));FAM=localStorage.getItem('dv_fam')}catch(e){FAM=qs.get('f')}
 if(!FAM&&qs.get('f'))FAM=qs.get('f');
 let E=[],TRASH=[],by={},LONG=[],PENDING=false;
-const norm=r=>({id:r.id,date:r.read_date,book:r.book,from:r.first_ch,to:r.last_ch,path:r.audio_path,dur:r.duration_sec,song:r.song_title,artist:r.song_artist,url:r.song_url,title:r.title,del:r.deleted_at});
+const norm=r=>({id:r.id,date:r.read_date,book:r.book,from:r.first_ch,to:r.last_ch,path:r.audio_path,dur:r.duration_sec,song:r.song_title,artist:r.song_artist,url:r.song_url,title:r.title,tag:r.tagline,del:r.deleted_at});
 const audioUrl=p=>sb.storage.from('recordings').getPublicUrl(p).data.publicUrl;
 async function load(){
  if(FAM){const {data,error}=await sb.rpc('family_readings',{code:FAM});if(error)throw error;E=(data||[]).map(norm);TRASH=[]}
@@ -87,7 +87,8 @@ const tile=(href,txt)=>`<a class="tile" href="${href}">${esc(txt)}</a>`;
 const shelf=(list,pre)=>'<div class="grid3">'+list.map(([b])=>tile(pre+encodeURIComponent(b),b)).join('')+'</div>';
 function card(e,head){
  const url=safeUrl(e.url);let h=`<div class="card"><h3>${head||when(e.date)}</h3>`;
- if(e.title)h+=`<p style="margin:0 0 6px;font-size:20px">${esc(e.title)}</p>`;
+ if(e.title)h+=`<p style="margin:0 0 ${e.tag?0:6}px;font-size:22px">${esc(e.title)}</p>`;
+ if(e.tag)h+=`<p style="margin:0 0 8px;font-style:italic;color:var(--soft)">${esc(e.tag)}</p>`;
  h+=`<button class="btn play" data-a="${esc(audioUrl(e.path))}">Listen${e.dur?' &middot; '+fmtDur(e.dur):''}</button><audio controls preload="none"></audio><p class="msg" style="display:none">This recording could not be played.</p>`;
  if(url)h+=`<a class="btn song" href="${esc(url)}" target="_blank" rel="noopener">What I'm Listening to Today</a>`;
  if(e.song)h+=`<p class="meta">${url?'':"What I'm Listening to Today: "}${esc(e.song)}${e.artist?' by '+esc(e.artist):''}</p>`;
@@ -137,7 +138,7 @@ let ADD={book:'',sel:new Set(),file:null,dur:null};
 function addHome(){
  ADD={book:'',sel:new Set(),file:null,dur:null};
  app.innerHTML=`<p class="crumb">${back('#/','Back to All Books')}</p><h2 style="margin-top:8px">What did you read?</h2>
- <a class="btn song" href="#/add/Start%20Here">Start Here (introduction)</a><a class="btn song" href="#/add/Random%20Thoughts">Random Thoughts (my writings)</a>
+ <a class="btn song" href="#/add/Start%20Here">Start Here (introduction)</a><a class="btn song" href="#/add/Random%20Thoughts">Dad's Writings (thoughts, essays, letters)</a>
  <h2>Old Testament</h2>${shelf(BOOKS.slice(0,OT_COUNT),'#/add/')}<h2>New Testament</h2>${shelf(BOOKS.slice(OT_COUNT),'#/add/')}`}
 function addBook(b){
  if(SPECIAL.includes(b)){ADD={book:b,sel:new Set(),file:null,dur:null};location.hash='#/review';return}
@@ -153,7 +154,7 @@ function plan(){
 function reviewPage(){
  if(!ADD.book){location.hash='#/add';return}
  const a=[...ADD.sel].sort((x,y)=>x-y),sp=SPECIAL.includes(ADD.book);
- const what=sp?(ADD.book==='Start Here'?'Start Here (introduction)':'Random Thoughts (my writings)'):`${ADD.book} ${a[0]}${a.length>1?'-'+a[a.length-1]:''}`;
+ const what=sp?(ADD.book==='Start Here'?'Start Here (introduction)':"Dad's Writings"):`${ADD.book} ${a[0]}${a.length>1?'-'+a[a.length-1]:''}`;
  let q='wav';try{q=localStorage.getItem('dv_q')||'wav'}catch(_){}
  app.innerHTML=`<p class="crumb">${back(sp?'#/add':'#/add/'+encodeURIComponent(ADD.book),'Change')}</p><h2 style="margin-top:8px">${esc(what)}</h2>
  <div class="card"><h3>1. Record</h3>
@@ -167,7 +168,8 @@ function reviewPage(){
  <details style="margin-top:14px"><summary style="cursor:pointer;color:var(--soft)">Use a recording from my Files instead</summary><input type="file" id="f_file" accept="audio/*,.m4a,.mp4,.mp3,.wav,.caf" style="margin-top:8px"></details></div>
  <div class="card"><h3>2. Details</h3>
  <label>Date read</label><input type="date" id="f_date" value="${today()}">
- ${sp?'<label>Title</label><input id="f_title" placeholder="For example: Forged in the Furnace">':''}
+ ${sp?`<label>Title${ADD.book==='Random Thoughts'?' (required)':' (optional)'}</label><input id="f_title" placeholder="${ADD.book==='Random Thoughts'?'For example: Forged in the Furnace':'A message from Dad'}">`:''}
+ ${ADD.book==='Random Thoughts'?'<label>Tagline (optional, one short line under the title)</label><input id="f_tag" placeholder="For example: What the fire taught me about trust">':''}
  <label>Song link, YouTube is best (optional)</label><input id="f_url" type="url" inputmode="url" placeholder="Paste link here">
  <div class="row"><div><label>Song name (optional)</label><input id="f_song"></div><div><label>Artist (optional)</label><input id="f_artist"></div></div></div>
  <button class="btn play" id="save">Save this reading</button><button class="btn song" id="discard">Discard</button>
@@ -256,6 +258,7 @@ async function save(){
  if(!ADD.file){err.textContent='Choose the recording first.';err.style.display='block';return}
  const a=[...ADD.sel].sort((x,y)=>x-y),sp=SPECIAL.includes(ADD.book);
  if(!sp&&!a.length){location.hash='#/add';return}
+ if(ADD.book==='Random Thoughts'&&!$('f_title').value.trim()){err.textContent='Please give this writing a title.';err.style.display='block';$('f_title').focus();return}
  $('save').disabled=true;$('prog').style.display='block';let wl;try{wl=await navigator.wakeLock?.request('screen')}catch(_){}
  const bar=$('prog').querySelector('i');let pct=5;const tick=setInterval(()=>{pct=Math.min(90,pct+3);bar.style.width=pct+'%'},1500);bar.style.width='5%';
  try{
@@ -263,7 +266,7 @@ async function save(){
   const path=`${UID}/${crypto.randomUUID()}.${ext}`;
   const up=await sb.storage.from('recordings').upload(path,f,{contentType:f.type||'audio/mp4'});if(up.error)throw up.error;
   const row={read_date:$('f_date').value||today(),book:ADD.book,first_ch:sp?null:a[0],last_ch:sp?null:a[a.length-1],audio_path:path,duration_sec:ADD.dur,
-   song_title:$('f_song').value.trim()||null,song_artist:$('f_artist').value.trim()||null,song_url:$('f_url').value.trim()||null,title:sp?($('f_title').value.trim()||null):null};
+   song_title:$('f_song').value.trim()||null,song_artist:$('f_artist').value.trim()||null,song_url:$('f_url').value.trim()||null,title:sp?($('f_title').value.trim()||null):null,tagline:ADD.book==='Random Thoughts'?($('f_tag').value.trim()||null):null};
   const ins=await sb.from('readings').insert(row);if(ins.error){await sb.storage.from('recordings').remove([path]);throw ins.error}
   bar.style.width='100%';await idbClear();await load();toast('Saved. Your reading is in the book.');
   location.hash=sp?'#/special/'+encodeURIComponent(ADD.book):lk(ADD.book,a[0]);ADD={book:'',sel:new Set(),file:null,dur:null};
@@ -276,7 +279,7 @@ function editPage(id){
  const sp=SPECIAL.includes(e.book);
  app.innerHTML=`<p class="crumb">${back(sp?'#/special/'+encodeURIComponent(e.book):lk(e.book,e.from),'Back')}</p><h2 style="margin-top:8px">Edit this reading</h2>
  <div class="card"><label>Date read</label><input type="date" id="e_date" value="${e.date}">
- ${sp?`<label>Title</label><input id="e_title" value="${esc(e.title)}">`:`<label>Book</label><select id="e_book">${BOOKS.map(([b])=>`<option ${b===e.book?'selected':''}>${esc(b)}</option>`).join('')}</select>
+ ${sp?`<label>Title</label><input id="e_title" value="${esc(e.title)}">${e.book==='Random Thoughts'?`<label>Tagline</label><input id="e_tag" value="${esc(e.tag)}">`:''}`:`<label>Book</label><select id="e_book">${BOOKS.map(([b])=>`<option ${b===e.book?'selected':''}>${esc(b)}</option>`).join('')}</select>
  <div class="row"><div><label>First chapter</label><input id="e_from" type="number" min="1" value="${e.from}"></div><div><label>Last chapter</label><input id="e_to" type="number" min="1" value="${e.to}"></div></div>`}
  <label>Song link (optional)</label><input id="e_url" type="url" value="${esc(e.url)}">
  <div class="row"><div><label>Song name</label><input id="e_song" value="${esc(e.song)}"></div><div><label>Artist</label><input id="e_artist" value="${esc(e.artist)}"></div></div>
@@ -286,7 +289,7 @@ async function editSave(id){
  const e=E.find(x=>x.id===id),sp=SPECIAL.includes(e.book),err=$('err');err.style.display='none';$('e_save').disabled=true;
  try{
   const up={read_date:$('e_date').value||e.date,song_url:$('e_url').value.trim()||null,song_title:$('e_song').value.trim()||null,song_artist:$('e_artist').value.trim()||null};
-  if(sp)up.title=$('e_title').value.trim()||null;else{const b=$('e_book').value,f=Math.max(1,+$('e_from').value||1),t=Math.max(f,+$('e_to').value||f);
+  if(sp){up.title=$('e_title').value.trim()||null;if($('e_tag'))up.tagline=$('e_tag').value.trim()||null}else{const b=$('e_book').value,f=Math.max(1,+$('e_from').value||1),t=Math.max(f,+$('e_to').value||f);
    if(f>size[b]||t>size[b])throw new Error(b+' has only '+size[b]+' chapters.');up.book=b;up.first_ch=f;up.last_ch=t}
   const nf=$('e_file').files[0];let old=null;
   if(nf){const ext=(nf.name.split('.').pop()||'m4a').toLowerCase().replace(/[^a-z0-9]/g,'')||'m4a',path=`${UID}/${crypto.randomUUID()}.${ext}`;
